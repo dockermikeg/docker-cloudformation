@@ -1,282 +1,398 @@
 {
-  "AWSTemplateFormatVersion": "2010-09-09",
-  "Parameters": {
-    "S3BucketName": {
-      "Description": "Name of the S3 bucket with your support files",
-      "Type": "String"
-    },
-    "MyExternalIP": {
-      "Description": "My external IP address (go to www.whatismyip.com and paste your IP address here)",
-      "Type": "String"
-    }
-  },
-  "Resources": {
-    "VPCDockerTemplate": {
-      "Type": "AWS::EC2::VPC",
-      "Properties": {
-        "CidrBlock": "172.30.0.0/16",
-        "InstanceTenancy": "default",
-        "EnableDnsSupport": "true",
-        "EnableDnsHostnames": "false"
-      }
-    },
-    "SubnetDockerTemplate": {
-      "Type": "AWS::EC2::Subnet",
-      "Properties": {
-        "CidrBlock": "172.30.0.0/24",
-        "AvailabilityZone": {
-          "Fn::Select": [
-            0,
-            {
-              "Fn::GetAZs": ""
-            }
-          ]
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Docker CS Engine - spins up EC2 instances via an autoscaling group inside of a VPC",
+    "Parameters": {
+        "VPCCIDR": {
+            "Description": "CIDR Block for VPC",
+            "Type": "String",
+            "Default": "10.1.0.0/16",
+            "AllowedValues": [
+                "10.1.0.0/16"
+            ]
         },
-        "VpcId": {
-          "Ref": "VPCDockerTemplate"
+        "PublicSubnet1Param": {
+            "Description": "Public Subnet 1",
+            "Type": "String",
+            "Default": "10.1.10.0/24",
+            "AllowedValues": [
+                "10.1.10.0/24"
+            ]
+        },
+        "KeyName": {
+            "Type": "String",
+            "Description": "Keyname for the keypair to launch EC2 instances",
+            "Default": "default-key"
+        },
+        "Ec2InstanceType": {
+            "Type": "String",
+            "Description": "EC2 instance type",
+            "Default": "t2.small",
+            "AllowedValues": [
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large"
+            ],
+            "ConstraintDescription": "must be a valid T2 EC2 instance type."
+        },
+        "S3BucketName": {
+              "Description": "Name of the S3 bucket with your support files",
+              "Type": "String"
+        },
+        "MyExternalIP": {
+            "Description": "My external IP address (go to www.whatismyip.com and paste your IP address here)",
+            "Type": "String"
         }
-      }
     },
-    "InternetGatewayDockerTemplate": {
-      "Type": "AWS::EC2::InternetGateway",
-      "Properties": {
-      }
-    },
-    "DHCPOptsDockerTemplate": {
-      "Type": "AWS::EC2::DHCPOptions",
-      "Properties": {
-        "DomainName": "docker.compute.internal",
-        "DomainNameServers": [
-          "AmazonProvidedDNS"
-        ]
-      }
-    },
-    "NetworkAclDockerTemplate": {
-      "Type": "AWS::EC2::NetworkAcl",
-      "Properties": {
-        "VpcId": {
-          "Ref": "VPCDockerTemplate"
-        }
-      }
-    },
-    "RouteTableDockerTemplate": {
-      "Type": "AWS::EC2::RouteTable",
-      "Properties": {
-        "VpcId": {
-          "Ref": "VPCDockerTemplate"
-        }
-      }
-    },
-    "EC2InstanceDockerTemplate": {
-      "Type": "AWS::EC2::Instance",
-      "Properties": {
-        "DisableApiTermination": "false",
-        "InstanceInitiatedShutdownBehavior": "stop",
-        "IamInstanceProfile": "docker-s3-read-role",
-        "ImageId": "ami-5189a661",
-        "InstanceType": "t2.micro",
-        "KeyName": "docker-dtr",
-        "Monitoring": "false",
-        "Tags": [
-          {
-            "Key": "Name",
-            "Value": "Docker CS Engine"
-          }
-        ],
-        "NetworkInterfaces": [
-          {
-            "DeleteOnTermination": "true",
-            "Description": "Primary network interface",
-            "DeviceIndex": 0,
-            "SubnetId": {
-              "Ref": "SubnetDockerTemplate"
+    "Mappings": {
+        "AmazonLinuxAMI": {
+            "us-east-1": {
+                "AMI": "ami-d05e75b8"
             },
-            "PrivateIpAddresses": [
-              {
-                "PrivateIpAddress": "172.30.0.214",
-                "Primary": "true"
-              }
-            ],
-            "GroupSet": [
-              {
-                "Ref": "sgdockerswarmsecuritygroup"
-              }
-            ],
-            "AssociatePublicIpAddress": "true"
-          }
-        ],
-        "UserData": {
-          "Fn::Base64": {
-            "Fn::Join": [
-              "\n",
-              [
-                "#!/bin/bash",
-                "curl -O https://bootstrap.pypa.io/get-pip.py",
-                "python get-pip.py",
-                "pip install awscli",
-                "mkdir /workspace",
-                {
-                  "Fn::Join": [
-                    "",
-                    [
-                      "aws s3 cp --recursive s3://",
-                      {
-                        "Ref": "S3BucketName"
-                      },
-                      "/ /workspace/ > /workspace/download.log 2>&1"
-                    ]
-                  ]
+            "us-west-2": {
+                "AMI": "ami-5189a661"
+            },
+            "eu-west-1": {
+                "AMI": "ami-47a23a30"
+            },
+            "us-west-1": {
+                "AMI": "ami-df6a8b9b"
+            },
+            "ap-southeast-2": {
+                "AMI": "ami-69631053"
+            },
+            "ap-northeast-1": {
+                "AMI": "ami-936d9d93"
+            }
+        }
+    },
+    "Resources": {
+        "Ec2InstanceAsg": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "Properties": {
+                "AvailabilityZones": [
+                    {
+                        "Fn::GetAtt": [
+                            "PublicSubnet1",
+                            "AvailabilityZone"
+                        ]
+                    }
+                ],
+                "VPCZoneIdentifier": [
+                    {
+                        "Ref": "PublicSubnet1"
+                    }
+                ],
+                "LaunchConfigurationName": {
+                    "Ref": "Ec2InstanceLc"
                 },
-                "chmod +x /workspace/*",
-                "echo '#!/bin/bash'                                        > /etc/rc.local",
-                "echo 'cd /workspace'                                      >> /etc/rc.local",
-                "echo 'if [ ! -f linux-image-extra-virtual-sentinel.txt ]' >> /etc/rc.local",
-                "echo 'then'                                               >> /etc/rc.local",
-                "echo '    apt-get update && apt-get upgrade -y'           >> /etc/rc.local",
-                "echo '    apt-get install -y linux-image-extra-virtual'   >> /etc/rc.local",
-                "echo '    touch linux-image-extra-virtual-sentinel.txt'   >> /etc/rc.local",
-                "echo '    reboot'                                         >> /etc/rc.local",
-                "echo 'fi'                                                 >> /etc/rc.local",
-                "echo 'if [ ! -f docker-install-sentinel.txt ]'            >> /etc/rc.local",
-                "echo 'then'                                               >> /etc/rc.local",
-                "echo '  chmod 755 docker-cs-engine-deb.sh'                >> /etc/rc.local",
-                "echo '  ./docker-cs-engine-deb.sh'                        >> /etc/rc.local",
-                "echo '  apt-get install -y docker-engine-cs'              >> /etc/rc.local",
-                "echo '  '                                                 >> /etc/rc.local",
-                "echo 'fi'                                                 >> /etc/rc.local",
-                "echo 'exit 0'                                             >> /etc/rc.local",
-                "#cp /workspace/provision-docker-node.sh /etc/rc.local",
-                "/etc/rc.local"
-              ]
-            ]
-          }
-        }
-      }
-    },
-    "sgdockerswarmsecuritygroup": {
-      "Type": "AWS::EC2::SecurityGroup",
-      "Properties": {
-        "GroupDescription": "Security group for Docker Swarm autoscaling cluster",
-        "VpcId": {
-          "Ref": "VPCDockerTemplate"
-        }
-      }
-    },
-    "acl1": {
-      "Type": "AWS::EC2::NetworkAclEntry",
-      "Properties": {
-        "CidrBlock": "0.0.0.0/0",
-        "Egress": "true",
-        "Protocol": "-1",
-        "RuleAction": "allow",
-        "RuleNumber": "100",
-        "NetworkAclId": {
-          "Ref": "NetworkAclDockerTemplate"
-        }
-      }
-    },
-    "acl2": {
-      "Type": "AWS::EC2::NetworkAclEntry",
-      "Properties": {
-        "CidrBlock": "0.0.0.0/0",
-        "Protocol": "-1",
-        "RuleAction": "allow",
-        "RuleNumber": "100",
-        "NetworkAclId": {
-          "Ref": "NetworkAclDockerTemplate"
-        }
-      }
-    },
-    "subnetacl1": {
-      "Type": "AWS::EC2::SubnetNetworkAclAssociation",
-      "Properties": {
-        "NetworkAclId": {
-          "Ref": "NetworkAclDockerTemplate"
+                "MinSize": "1",
+                "MaxSize": "2",
+                "DesiredCapacity": "2",
+                "Tags": [
+                    {
+                        "Key": "Application",
+                        "Value": {
+                            "Ref": "AWS::StackName"
+                        },
+                        "PropagateAtLaunch": "true"
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "EC2 Instance",
+                        "PropagateAtLaunch": "true"
+                    }
+                ]
+            }
         },
-        "SubnetId": {
-          "Ref": "SubnetDockerTemplate"
-        }
-      }
-    },
-    "gw1": {
-      "Type": "AWS::EC2::VPCGatewayAttachment",
-      "Properties": {
-        "VpcId": {
-          "Ref": "VPCDockerTemplate"
-        },
-        "InternetGatewayId": {
-          "Ref": "InternetGatewayDockerTemplate"
-        }
-      }
-    },
-    "route1": {
-      "Type": "AWS::EC2::Route",
-      "Properties": {
-        "DestinationCidrBlock": "0.0.0.0/0",
-        "RouteTableId": {
-          "Ref": "RouteTableDockerTemplate"
-        },
-        "GatewayId": {
-          "Ref": "InternetGatewayDockerTemplate"
-        }
-      },
-      "DependsOn": "gw1"
-    },
-    "dchpassoc1": {
-      "Type": "AWS::EC2::VPCDHCPOptionsAssociation",
-      "Properties": {
-        "VpcId": {
-          "Ref": "VPCDockerTemplate"
-        },
-        "DhcpOptionsId": {
-          "Ref": "DHCPOptsDockerTemplate"
-        }
-      }
-    },
-    "MyIPIngress": {
-      "Type": "AWS::EC2::SecurityGroupIngress",
-      "Properties": {
-        "GroupId": {
-          "Ref": "sgdockerswarmsecuritygroup"
-        },
-        "IpProtocol": "tcp",
-        "FromPort": "1",
-        "ToPort": "65535",
-        "CidrIp": {
-        "Fn::Join": [
-                    "",
-                    [
-                      {
-                        "Ref": "MyExternalIP"
-                      },
-                      "/32"
+        "Ec2InstanceLc": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "Properties": {
+                "ImageId": {
+                    "Fn::FindInMap": [
+                        "AmazonLinuxAMI",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        "AMI"
                     ]
-            ]
+                },
+                "InstanceType": {
+                    "Ref": "Ec2InstanceType"
+                },
+                "AssociatePublicIpAddress": "true",
+                "IamInstanceProfile": {
+                    "Ref": "RootInstanceProfile"
+                },
+                "SecurityGroups": [
+                    {
+                        "Ref": "EC2SecurityGroup"
+                    }
+                ],
+                "KeyName": {
+                    "Ref": "KeyName"
+                },
+                "UserData": {
+                  "Fn::Base64": {
+                    "Fn::Join": [
+                      "\n",
+                      [
+                        "#!/bin/bash",
+                        "curl -O https://bootstrap.pypa.io/get-pip.py",
+                        "python get-pip.py",
+                        "pip install awscli",
+                        "mkdir /workspace",
+                        {
+                          "Fn::Join": [
+                            "",
+                            [
+                              "aws s3 cp --recursive s3://",
+                              {
+                                "Ref": "S3BucketName"
+                              },
+                              "/ /workspace/ > /workspace/download.log 2>&1"
+                            ]
+                          ]
+                        },
+                        "chmod +x /workspace/*",
+                        "echo '#!/bin/bash'                                        > /etc/rc.local",
+                        "echo 'cd /workspace'                                      >> /etc/rc.local",
+                        "echo 'if [ ! -f linux-image-extra-virtual-sentinel.txt ]' >> /etc/rc.local",
+                        "echo 'then'                                               >> /etc/rc.local",
+                        "echo '    apt-get update && apt-get upgrade -y'           >> /etc/rc.local",
+                        "echo '    apt-get install -y linux-image-extra-virtual'   >> /etc/rc.local",
+                        "echo '    touch linux-image-extra-virtual-sentinel.txt'   >> /etc/rc.local",
+                        "echo '    sleep 60'   >> /etc/rc.local",
+                        "echo '    reboot'                                         >> /etc/rc.local",
+                        "echo 'fi'                                                 >> /etc/rc.local",
+                        "echo 'if [ ! -f docker-install-sentinel.txt ]'            >> /etc/rc.local",
+                        "echo 'then'                                               >> /etc/rc.local",
+                        "echo '  chmod 755 docker-cs-engine-deb.sh'                >> /etc/rc.local",
+                        "echo '  ./docker-cs-engine-deb.sh'                        >> /etc/rc.local",
+                        "echo '  apt-get install -y docker-engine-cs'              >> /etc/rc.local",
+                        "echo '  touch docker-install-sentinel.txt'                >> /etc/rc.local",
+                        "echo 'fi'                                                 >> /etc/rc.local",
+                        "echo 'exit 0'                                             >> /etc/rc.local",
+                        "/etc/rc.local"
+                      ]
+                    ]
+                  }
+                }
+            }
+        },
+        "VPC": {
+            "Type": "AWS::EC2::VPC",
+            "Properties": {
+                "CidrBlock": {
+                    "Ref": "VPCCIDR"
+                },
+                "EnableDnsSupport": "true",
+                "EnableDnsHostnames": "true",
+                "Tags": [
+                    {
+                        "Key": "VPC",
+                        "Value": "EC2"
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "Docker VPC"
+                    }
+                ]
+            }
+        },
+        "InternetGateway": {
+            "Type": "AWS::EC2::InternetGateway",
+            "DependsOn": "VPC"
+        },
+        "AttachGateway": {
+            "Type": "AWS::EC2::VPCGatewayAttachment",
+            "DependsOn": [
+                "VPC",
+                "InternetGateway"
+            ],
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "InternetGatewayId": {
+                    "Ref": "InternetGateway"
+                }
+            }
+        },
+        "PublicSubnet1": {
+            "Type": "AWS::EC2::Subnet",
+            "DependsOn": "AttachGateway",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "CidrBlock": {
+                    "Ref": "PublicSubnet1Param"
+                },
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        "0",
+                        {
+                            "Fn::GetAZs": ""
+                        }
+                    ]
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Public Subnet 1"
+                    }
+                ]
+            }
+        },
+        "PublicRouteTable": {
+            "Type": "AWS::EC2::RouteTable",
+            "DependsOn": [
+                "VPC",
+                "AttachGateway"
+            ],
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Public"
+                    }
+                ]
+            }
+        },
+        "PublicRoute": {
+            "Type": "AWS::EC2::Route",
+            "DependsOn": [
+                "PublicRouteTable",
+                "AttachGateway"
+            ],
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "PublicRouteTable"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "InternetGateway"
+                }
+            }
+        },
+        "PublicSubnet1RouteTableAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "DependsOn": [
+                "PublicRouteTable",
+                "PublicSubnet1",
+                "AttachGateway"
+            ],
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "PublicSubnet1"
+                },
+                "RouteTableId": {
+                    "Ref": "PublicRouteTable"
+                }
+            }
+        },
+        "EC2SecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "DependsOn": "AttachGateway",
+            "Properties": {
+                "GroupDescription": "Security Group for EC2Instance",
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "EC2SecurityGroup"
+                    }
+                ],
+                "SecurityGroupEgress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "0",
+                        "ToPort": "65535",
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "udp",
+                        "FromPort": "0",
+                        "ToPort": "65535",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ],
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "0",
+                        "ToPort": "65535",
+                        "CidrIp": {
+                            "Fn::Join": [
+                                        "",
+                                        [
+                                          {
+                                            "Ref": "MyExternalIP"
+                                          },
+                                          "/32"
+                                        ]
+                                ]
+                            }
+                    }
+                ]
+            }
+        },
+        "RootRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                   "Version" : "2012-10-17",
+                   "Statement": [ {
+                   "Effect": "Allow",
+                   "Principal": {
+                         "Service": [ "ec2.amazonaws.com" ]
+                   },
+                   "Action": [ "sts:AssumeRole" ]
+                   } ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "root",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": "s3:*",
+                                    "Resource": "arn:aws:s3:::*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "RootInstanceProfile": {
+            "Type": "AWS::IAM::InstanceProfile",
+            "DependsOn": "RootRole",
+            "Properties": {
+                "Path": "/",
+                "Roles": [
+                    {
+                        "Ref": "RootRole"
+                    }
+                ]
+            }
         }
-      }
     },
-    "GithubWebhookIngress": {
-      "Type": "AWS::EC2::SecurityGroupIngress",
-      "Properties": {
-        "GroupId": {
-          "Ref": "sgdockerswarmsecuritygroup"
-        },
-        "IpProtocol": "tcp",
-        "FromPort": "8080",
-        "ToPort": "8080",
-        "CidrIp": "192.30.252.0/22"
-      }
-    },
-    "egress1": {
-      "Type": "AWS::EC2::SecurityGroupEgress",
-      "Properties": {
-        "GroupId": {
-          "Ref": "sgdockerswarmsecuritygroup"
-        },
-        "IpProtocol": "-1",
-        "CidrIp": "0.0.0.0/0"
-      }
+    "Outputs": {
+        "Ec2InstanceAsgName": {
+            "Description": "Auto Scaling Group Name for EC2 Instances",
+            "Value": {
+                "Ref": "Ec2InstanceAsg"
+            }
+        }
     }
-  },
-  "Description": "Docker CS Engine Template"
 }
