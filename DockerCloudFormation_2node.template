@@ -1,0 +1,141 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Docker CS Engine and Trusted Registry - spins up one CS Engine instance and one DTR instance",
+    "Parameters": {
+        "KeyName": {
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "Description": "Keyname for the keypair to launch EC2 instances"
+        },
+        "Ec2InstanceType": {
+            "Type": "String",
+            "Description": "EC2 instance type",
+            "Default": "m3.large",
+            "AllowedValues": [
+                "m3.large",
+                "m3.xlarge",
+                "m3.2xlarge",
+                "m4.large",
+                "m4.xlarge",
+                "m4.2xlarge",
+                "m4.4xlarge",
+                "m4.10xlarge",
+                "c4.xlarge",
+                "c4.2xlarge",
+                "c4.4xlarge",
+                "c4.8xlarge",
+                "c3.xlarge",
+                "c3.2xlarge",
+                "c3.4xlarge",
+                "c3.8xlarge",
+                "r3.large",
+                "r3.xlarge",
+                "r3.2xlarge",
+                "r3.4xlarge",
+                "r3.8xlarge",
+                "i2.xlarge",
+                "i2.2xlarge",
+                "i2.4xlarge",
+                "i2.8xlarge",
+                "d2.xlarge",
+                "d2.2xlarge",
+                "d2.4xlarge",
+                "d2.8xlarge"
+            ],
+            "ConstraintDescription": "must be a valid T2 EC2 instance type."
+        },
+        "DockerSubnet": {
+              "Description": "Subnet to use when launching instances",
+              "Type": "AWS::EC2::Subnet::Id"
+        }
+    },
+    "Mappings": {
+        "TrustedRegistryAMI": {
+            "us-east-1": {
+                "AMI": "ami-cbbfdeae"
+            },
+            "us-west-2": {
+                "AMI": "ami-03263533"
+            },
+            "us-west-1": {
+                "AMI": "ami-3d11ea79"
+            }
+        },
+        "CSEngineAMI": {
+            "us-east-1": {
+                "AMI": "ami-dbbfdebe"
+            },
+            "us-west-2": {
+                "AMI": "ami-1d26352d"
+            },
+            "us-west-1": {
+                "AMI": "ami-3711ea73"
+            }
+        }
+    },
+    "Resources": {
+        "CSEngineInstance": {
+          "Type": "AWS::EC2::Instance",
+          "Properties": {
+            "DisableApiTermination": "false",
+            "InstanceInitiatedShutdownBehavior": "stop",
+            "ImageId": {
+                    "Fn::FindInMap": [
+                        "CSEngineAMI",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        "AMI"
+                    ]
+                },
+            "InstanceType": {
+                    "Ref": "Ec2InstanceType"
+                },
+            "KeyName": {
+                    "Ref": "KeyName"
+                },
+            "Monitoring": "false",
+            "Tags": [
+              {
+                "Key": "Name",
+                "Value": "Docker CS Engine"
+              }
+            ],
+            "SubnetId": {
+                    "Ref": "DockerSubnet"
+            }
+          }
+        },
+        "DTRInstance": {
+          "Type": "AWS::EC2::Instance",
+          "Properties": {
+            "DisableApiTermination": "false",
+            "InstanceInitiatedShutdownBehavior": "stop",
+            "ImageId": {
+                    "Fn::FindInMap": [
+                        "TrustedRegistryAMI",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        "AMI"
+                    ]
+                },
+            "InstanceType": {
+                    "Ref": "Ec2InstanceType"
+                },
+            "KeyName": {
+                    "Ref": "KeyName"
+                },
+            "Monitoring": "false",
+            "Tags": [
+              {
+                "Key": "Name",
+                "Value": "Docker Trusted Registry"
+              }
+            ],
+            "SubnetId": {
+                    "Ref": "DockerSubnet"
+            }
+          }
+        }
+    }
+}
