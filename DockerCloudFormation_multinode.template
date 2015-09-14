@@ -48,7 +48,6 @@
             "Description": "Number of Docker Engines you want to launch in addition to the one Docker Trusted Registry instance.",
             "Default": "5",
             "AllowedValues": [
-                "1",
                 "5",
                 "10",
                 "20",
@@ -74,24 +73,60 @@
     "Mappings": {
         "TrustedRegistryAMI": {
             "us-east-1": {
-                "AMI": "ami-cbbfdeae"
-            },
-            "us-west-2": {
-                "AMI": "ami-03263533"
+                "AMI": "ami-ff03689a"
             },
             "us-west-1": {
-                "AMI": "ami-3d11ea79"
+                "AMI": "ami-998d48dd"
+            },
+            "us-west-2": {
+                "AMI": "ami-d51b07e5"
+            },
+            "eu-central-1": {
+                "AMI": "ami-b02f2fad"
+            },
+            "eu-west-1": {
+                "AMI": "ami-8ff2d1f8"
+            },
+            "ap-southeast-1": {
+                "AMI": "ami-d855408a"
+            },
+            "ap-southeast-2": {
+                "AMI": "ami-d38dc2e9"
+            },
+            "ap-northeast-1": {
+                "AMI": "ami-aeec79ae"
+            },
+            "sa-east-1": {
+                "AMI": "ami-1183160c"
             }
         },
         "CSEngineAMI": {
             "us-east-1": {
                 "AMI": "ami-dbbfdebe"
             },
+            "us-west-1": {
+                "AMI": "ami-3711ea73"
+            },
             "us-west-2": {
                 "AMI": "ami-1d26352d"
             },
-            "us-west-1": {
-                "AMI": "ami-3711ea73"
+            "eu-central-1": {
+                "AMI": "ami-ee3736f3"
+            },
+            "eu-west-1": {
+                "AMI": "ami-737a5d04"
+            },
+            "ap-southeast-1": {
+                "AMI": "ami-4a313a18"
+            },
+            "ap-southeast-2": {
+                "AMI": "ami-49561a73"
+            },
+            "ap-northeast-1": {
+                "AMI": "ami-c271fec2"
+            },
+            "sa-east-1": {
+                "AMI": "ami-69911b74"
             }
         }
     },
