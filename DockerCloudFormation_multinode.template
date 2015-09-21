@@ -198,6 +198,7 @@
         "CSEngineLc": {
             "Type": "AWS::AutoScaling::LaunchConfiguration",
             "Properties": {
+            "AssociatePublicIpAddress": "true",
             "ImageId": {
                     "Fn::FindInMap": [
                         "CSEngineAMI",
@@ -218,6 +219,7 @@
         "DTRLc": {
             "Type": "AWS::AutoScaling::LaunchConfiguration",
             "Properties": {
+            "AssociatePublicIpAddress": "true",
             "ImageId": {
                     "Fn::FindInMap": [
                         "TrustedRegistryAMI",
