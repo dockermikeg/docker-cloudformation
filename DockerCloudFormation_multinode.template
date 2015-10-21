@@ -73,13 +73,13 @@
     "Mappings": {
         "TrustedRegistryAMI": {
             "us-east-1": {
-                "AMI": "ami-ff03689a"
+                "AMI": "ami-27c78d42"
             },
             "us-west-1": {
-                "AMI": "ami-998d48dd"
+                "AMI": "ami-b78444f3"
             },
             "us-west-2": {
-                "AMI": "ami-d51b07e5"
+                "AMI": "ami-8c53b5bf"
             },
             "eu-central-1": {
                 "AMI": "ami-b02f2fad"
@@ -102,13 +102,13 @@
         },
         "CSEngineAMI": {
             "us-east-1": {
-                "AMI": "ami-dbbfdebe"
+                "AMI": "ami-2bc78d4e"
             },
             "us-west-1": {
-                "AMI": "ami-3711ea73"
+                "AMI": "ami-b58444f1"
             },
             "us-west-2": {
-                "AMI": "ami-1d26352d"
+                "AMI": "ami-8a53b5b9"
             },
             "eu-central-1": {
                 "AMI": "ami-ee3736f3"
